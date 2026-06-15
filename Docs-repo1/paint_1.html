@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Paint App with Shapes</title>
+  <style>
+    body { text-align: center; font-family: Arial, sans-serif;
+       background: rgb(84, 170, 255); }
+    canvas {
+      border: 2px solid black;
+      cursor: crosshair;
+      background: rgb(255, 255, 255);
+    }
+    .toolbar {
+      margin: 10px;
+    }
+    button { margin: 0 5px; }
+  </style>
+</head>
+<body>
+  <h1>Paint App</h1>
+  <div class="toolbar">
+    <label>Color: <input type="color" id="colorPicker" value="#000000"></label>
+    <label>Brush Size: <input type="range" id="brushSize" min="1" max="30" value="5"></label>
+    <label><input type="checkbox" id="fillShape"> Fill Shape</label>
+    <button onclick="setTool('brush')">Brush</button>
+    <button onclick="setTool('eraser')">Eraser</button>
+    <button onclick="setTool('line')">Line</button>
+    <button onclick="setTool('rectangle')">Rectangle</button>
+    <button onclick="setTool('circle')">Circle</button>
+    <button onclick="setTool('triangle')">Triangle</button>
+    <button onclick="undo()">Undo</button>
+    <button onclick="redo()">Redo</button>
+    <button onclick="clearCanvas()">Clear</button>
+    <button onclick="saveImage()">Save</button>
+  </div>
+  <canvas id="paintCanvas" width="1100" height="1000"></canvas>
+
+  <script>
+    const canvas = document.getElementById('paintCanvas');
+    const ctx = canvas.getContext('2d');
+    let painting = false;
+    let tool = 'brush';
+    let startX, startY;
+    let history = [];
+    let redoStack = [];
+
+    function setTool(selectedTool) {
+      tool = selectedTool;
+    }
+
+    function startPosition(e) {
+      painting = true;
+      startX = e.offsetX;
+      startY = e.offsetY;
+      if (tool === 'brush' || tool === 'eraser') {
+        saveState();
+        draw(e);
+      } else {
+        saveState();
+      }
+    }
+
+    function endPosition(e) {
+      if (!painting) return;
+      painting = false;
+      if (tool !== 'brush' && tool !== 'eraser') {
+        drawShapePreview(e); // finalize shape
+      }
+      ctx.beginPath();
+    }
+
+    function draw(e) {
+      if (!painting) return;
+      ctx.lineWidth = document.getElementById('brushSize').value;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = (tool === 'eraser') ? '#FFFFFF' : document.getElementById('colorPicker').value;
+
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(e.offsetX, e.offsetY);
+    }
+
+    function drawShapePreview(e) {
+      if (!painting || (tool === 'brush' || tool === 'eraser')) return;
+
+      // Clear canvas and redraw last saved state
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (history.length > 0) {
+        let img = new Image();
+        img.src = history[history.length - 1];
+        img.onload = () => ctx.drawImage(img, 0, 0);
+      }
+
+      ctx.lineWidth = document.getElementById('brushSize').value;
+      ctx.strokeStyle = document.getElementById('colorPicker').value;
+      ctx.fillStyle = document.getElementById('colorPicker').value;
+      let endX = e.offsetX;
+      let endY = e.offsetY;
+      let fill = document.getElementById('fillShape').checked;
+
+      switch (tool) {
+        case 'line':
+          ctx.beginPath();
+          ctx.moveTo(startX, startY);
+          ctx.lineTo(endX, endY);
+          ctx.stroke();
+          break;
+        case 'rectangle':
+          if (fill) {
+            ctx.fillRect(startX, startY, endX - startX, endY - startY);
+          } else {
+            ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+          }
+          break;
+        case 'circle':
+          ctx.beginPath();
+          let radius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+          ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+          fill ? ctx.fill() : ctx.stroke();
+          break;
+        case 'triangle':
+          ctx.beginPath();
+          ctx.moveTo(startX, endY);
+          ctx.lineTo((startX + endX) / 2, startY);
+          ctx.lineTo(endX, endY);
+          ctx.closePath();
+          fill ? ctx.fill() : ctx.stroke();
+          break;
+      }
+    }
+
+    function clearCanvas() {
+      saveState();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function saveImage() {
+      const link = document.createElement('a');
+      link.download = 'painting.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    }
+
+    function saveState() {
+      history.push(canvas.toDataURL());
+      redoStack = [];
+    }
+
+    function undo() {
+      if (history.length > 1) {
+        redoStack.push(history.pop());
+        let imgData = history[history.length - 1];
+        let img = new Image();
+        img.src = imgData;
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+      }
+    }
+
+    function redo() {
+      if (redoStack.length > 0) {
+        let imgData = redoStack.pop();
+        history.push(imgData);
+        let img = new Image();
+        img.src = imgData;
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+      }
+    }
+
+    canvas.addEventListener('mousedown', startPosition);
+    canvas.addEventListener('mouseup', endPosition);
+    canvas.addEventListener('mousemove', (e) => {
+      if (tool === 'brush' || tool === 'eraser') {
+        draw(e);
+      } else {
+        drawShapePreview(e);
+      }
+    });
+  </script>
+</body>
+</html>
